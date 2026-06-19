@@ -14,15 +14,19 @@ jobs:
           python-version: '3.11'
       - name: Install ESPHome
         run: pip install esphome
-      - name: Copy example with local component source
+      - name: Create dummy secrets
         run: |
-          cp examples/minimal.yaml /tmp/minimal.yaml
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('/tmp/minimal.yaml')
-          s = p.read_text()
-          s = s.replace('github://YOUR_GITHUB_USERNAME/hxlight-ble-adv-esphome@main', str(Path.cwd()))
-          p.write_text(s)
-          PY
-      - name: Validate minimal example
-        run: esphome config /tmp/minimal.yaml
+          cat > /tmp/secrets.yaml <<'EOF'
+          wifi_ssid: "test-ssid"
+          wifi_password: "test-password"
+          EOF
+      - name: Validate examples with local component source
+        run: |
+          for f in examples/*.yaml; do
+            base="$(basename "$f")"
+            echo "::group::Validating $base"
+            cp "$f" "/tmp/$base"
+            sed -i "s|github://YOUR_GITHUB_USERNAME/hxlight-ble-adv-esphome@main|$PWD/components|" "/tmp/$base"
+            esphome config "/tmp/$base"
+            echo "::endgroup::"
+          done
