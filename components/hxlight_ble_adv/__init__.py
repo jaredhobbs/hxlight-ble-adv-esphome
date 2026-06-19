@@ -3,7 +3,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import esp32_ble
-from esphome.components.esp32 import request_bluetooth
 from esphome.components.esp32_ble import CONF_BLE_ID
 from esphome.const import CONF_ID
 from esphome.core import TimePeriod
@@ -73,4 +72,6 @@ async def to_code(config):
     cg.add(var.set_discovery(config[CONF_DISCOVERY]))
 
     cg.add_define("USE_ESP32_BLE_ADVERTISING")
-    request_bluetooth(ble_42=True)
+    # ESPHome 2026.x no longer exposes esp32.request_bluetooth(). The supported
+    # path is to load and configure esp32_ble (with `advertising: true` in the
+    # user's YAML), which AUTO_LOAD pulls in for this component.
