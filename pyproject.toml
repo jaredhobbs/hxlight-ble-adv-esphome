@@ -1,0 +1,7 @@
+[project]
+name = "hxlight-ble-adv-esphome"
+version = "0.1.0"
+description = "ESPHome external component for HXLight/JOOFO BLE advertising lamps"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}

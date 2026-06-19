@@ -1,0 +1,29 @@
+# Temporary YAML to discover HXLight config values.
+# Flash this to an ESP32 near the lamp, open logs, press ON/OFF in HXLight,
+# then copy the latest device_prefix and initial_sequence values from the logs.
+
+esphome:
+  name: hxlight-discovery
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+api:
+ota:
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+external_components:
+  - source: github://YOUR_GITHUB_USERNAME/hxlight-ble-adv-esphome@main
+    components: [hxlight_ble_adv]
+
+hxlight_ble_adv:
+  id: hxlight_controller
+  discovery: true

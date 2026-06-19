@@ -1,0 +1,28 @@
+name: Validate examples
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install ESPHome
+        run: pip install esphome
+      - name: Copy example with local component source
+        run: |
+          cp examples/minimal.yaml /tmp/minimal.yaml
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('/tmp/minimal.yaml')
+          s = p.read_text()
+          s = s.replace('github://YOUR_GITHUB_USERNAME/hxlight-ble-adv-esphome@main', str(Path.cwd()))
+          p.write_text(s)
+          PY
+      - name: Validate minimal example
+        run: esphome config /tmp/minimal.yaml

@@ -1,0 +1,44 @@
+esphome:
+  name: hxlight-lamp-bridge
+  friendly_name: HXLight Lamp Bridge
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+api:
+ota:
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+external_components:
+  - source: github://YOUR_GITHUB_USERNAME/hxlight-ble-adv-esphome@main
+    components: [hxlight_ble_adv]
+
+hxlight_ble_adv:
+  id: hxlight_controller
+  adv_duration: 700ms
+  adv_gap: 60ms
+
+light:
+  - platform: hxlight_ble_adv
+    name: "Living Room Floor Lamp"
+    controller_id: hxlight_controller
+    device_prefix: "6db643593a60a7a1"
+    initial_sequence: 109
+    restore_sequence: true
+    default_transition_length: 0s
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: hxlight_ble_adv
+    name: "Bedroom Floor Lamp"
+    controller_id: hxlight_controller
+    device_prefix: "0123456789abcdef"
+    initial_sequence: 42
+    restore_sequence: true
+    default_transition_length: 0s
+    restore_mode: RESTORE_DEFAULT_OFF

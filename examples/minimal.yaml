@@ -1,0 +1,43 @@
+esphome:
+  name: joofo-floor-lamp-proxy
+  friendly_name: JOOFO Floor Lamp Proxy
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+api:
+ota:
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+external_components:
+  - source: github://YOUR_GITHUB_USERNAME/hxlight-ble-adv-esphome@main
+    components: [hxlight_ble_adv]
+
+hxlight_ble_adv:
+  id: hxlight_controller
+  adv_interval_min: 30ms
+  adv_interval_max: 30ms
+  adv_duration: 700ms
+  adv_gap: 60ms
+  max_queue_size: 32
+
+light:
+  - platform: hxlight_ble_adv
+    id: floor_lamp
+    name: "Floor Lamp"
+    controller_id: hxlight_controller
+    device_prefix: "6db643593a60a7a1"
+    initial_sequence: 130
+    restore_sequence: true
+    cold_white_color_temperature: 5000 K
+    warm_white_color_temperature: 3000 K
+    default_transition_length: 0s
+    restore_mode: RESTORE_DEFAULT_OFF
