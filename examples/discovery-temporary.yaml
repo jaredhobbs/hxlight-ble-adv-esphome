@@ -4,6 +4,7 @@
 
 esphome:
   name: hxlight-discovery
+  min_version: "2026.6.1"
 
 esp32:
   board: esp32dev

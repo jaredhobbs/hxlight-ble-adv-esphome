@@ -15,7 +15,7 @@ This component turns the lamp into a normal ESPHome/Home Assistant `light` entit
 ## Requirements
 
 - ESP32 board with Bluetooth
-- ESPHome 2026.6.x tested target, likely works on recent ESPHome versions
+- ESPHome 2026.6.1 or newer (examples set `min_version: "2026.6.1"`)
 - The lamp must use the HXLight/JOOFO BLE advertising protocol with packets beginning with `0201011bfff0ff` or `0201021bfff0ff`
 
 ESPHome supports external components from local folders or Git repositories, and light platforms expose entities usable from Home Assistant. See the ESPHome external-components and light docs for the general mechanics.
@@ -26,6 +26,7 @@ ESPHome supports external components from local folders or Git repositories, and
 esphome:
   name: joofo-floor-lamp-proxy
   friendly_name: JOOFO Floor Lamp Proxy
+  min_version: "2026.6.1"
 
 esp32:
   board: esp32dev
