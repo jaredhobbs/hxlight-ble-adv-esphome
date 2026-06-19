@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Fixed `ImportError: cannot import name 'request_bluetooth'` on ESPHome 2026.x. The component no longer calls the removed `esp32.request_bluetooth()` and relies on `esp32_ble` instead. Configs must now include a top-level `esp32_ble: { advertising: true }` block (added to all examples).
+- Updated examples and README to use the platform-based `ota:` config (`ota: [{ platform: esphome }]`) required by recent ESPHome.
 - Switched example ESP32 framework configs from Arduino to ESP-IDF.
 - Added controller `discovery` mode to scan HXLight Android app advertisements and log YAML-ready `device_prefix` and `initial_sequence` values.
 
