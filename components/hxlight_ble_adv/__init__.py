@@ -71,7 +71,12 @@ async def to_code(config):
     cg.add(var.set_max_queue_size(config[CONF_MAX_QUEUE_SIZE]))
     cg.add(var.set_discovery(config[CONF_DISCOVERY]))
 
-    cg.add_define("USE_ESP32_BLE_ADVERTISING")
-    # ESPHome 2026.x no longer exposes esp32.request_bluetooth(). The supported
-    # path is to load and configure esp32_ble (with `advertising: true` in the
-    # user's YAML), which AUTO_LOAD pulls in for this component.
+    # This component transmits raw BLE advertisements directly through the
+    # ESP-IDF GAP API (esp_ble_gap_*), so it only needs the base esp32_ble
+    # stack initialized (USE_ESP32_BLE, provided via AUTO_LOAD). It does not
+    # use esp32_ble's BLEAdvertising helper, so it must NOT define
+    # USE_ESP32_BLE_ADVERTISING on its own: that macro is only valid when
+    # paired with USE_ESP32_BLE_UUID, which esp32_ble defines together when
+    # `advertising: true` is set. Defining it alone breaks the esp32_ble build
+    # (ESPBTUUID becomes an incomplete type). ESPHome 2026.x also no longer
+    # exposes esp32.request_bluetooth(); esp32_ble handles BLE initialization.

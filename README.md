@@ -33,9 +33,6 @@ esp32:
   framework:
     type: esp-idf
 
-esp32_ble:
-  advertising: true
-
 logger:
   level: DEBUG
 
