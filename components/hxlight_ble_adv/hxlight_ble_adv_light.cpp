@@ -2,9 +2,12 @@
 
 #ifdef USE_ESP32
 
+#include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <algorithm>
 #include <cmath>
+#include <cstring>
 
 namespace esphome::hxlight_ble_adv {
 
@@ -12,13 +15,29 @@ static const char *const TAG = "hxlight_ble_adv.light";
 static constexpr uint8_t BODY_XOR_MASK[11] = {0xE5, 0x1D, 0xFE, 0xB8, 0x51, 0xFA, 0x2A, 0xB4, 0xE7, 0xD4, 0x0C};
 
 void HXLightBLEAdvLight::setup() {
-  if (this->restore_sequence_) {
-    this->sequence_pref_ = global_preferences->make_preference<uint8_t>(this->preference_hash_());
-    uint8_t restored;
-    if (this->sequence_pref_.load(&restored)) {
-      this->sequence_ = restored;
+  // Persistence is keyed on a stable per-light value (not the device prefix),
+  // so a prefix learned at runtime survives reboots.
+  this->pref_ = global_preferences->make_preference<HXLightPersist>(this->preference_key_);
+  HXLightPersist blob{};
+  if (this->pref_.load(&blob)) {
+    if (this->restore_sequence_) {
+      this->sequence_ = blob.sequence;
       ESP_LOGI(TAG, "Restored HXLight sequence 0x%02X", this->sequence_);
     }
+    if (!this->prefix_pinned_ && blob.paired) {
+      std::copy(std::begin(blob.prefix), std::end(blob.prefix), this->device_prefix_.begin());
+      this->has_prefix_ = true;
+      ESP_LOGI(TAG, "Restored paired HXLight device prefix");
+    }
+  }
+
+  if (this->controller_ != nullptr) this->controller_->register_light(this);
+
+  if (!this->has_prefix_) {
+    ESP_LOGW(TAG, "HXLight light is unpaired; press its Pair/Sync button and use the HXLight app");
+    this->publish_status_("Unpaired");
+  } else {
+    this->publish_status_("Ready");
   }
 }
 
@@ -30,7 +49,8 @@ void HXLightBLEAdvLight::dump_config() {
   prefix[16] = '\0';
 
   ESP_LOGCONFIG(TAG, "HXLight BLE ADV Light:");
-  ESP_LOGCONFIG(TAG, "  Device prefix: %s", prefix);
+  ESP_LOGCONFIG(TAG, "  Device prefix: %s%s", this->has_prefix_ ? prefix : "(unpaired)",
+                this->prefix_pinned_ ? " (pinned)" : "");
   ESP_LOGCONFIG(TAG, "  Sequence: 0x%02X", this->sequence_);
   ESP_LOGCONFIG(TAG, "  Restore sequence: %s", YESNO(this->restore_sequence_));
   ESP_LOGCONFIG(TAG, "  Cold white: %.1f mireds", this->cold_white_temperature_);
@@ -52,6 +72,11 @@ light::LightTraits HXLightBLEAdvLight::get_traits() {
 void HXLightBLEAdvLight::write_state(light::LightState *state) {
   if (this->controller_ == nullptr) {
     ESP_LOGE(TAG, "Cannot send HXLight command: no controller configured");
+    return;
+  }
+
+  if (!this->has_prefix_) {
+    ESP_LOGW(TAG, "Ignoring HXLight command: light is unpaired. Press Pair/Sync and use the HXLight app.");
     return;
   }
 
@@ -121,26 +146,63 @@ uint16_t HXLightBLEAdvLight::crc16_x25_(const uint8_t *data, size_t len) {
   return crc ^ 0xFFFF;
 }
 
-uint32_t HXLightBLEAdvLight::preference_hash_() const {
-  uint32_t hash = 2166136261UL;
-  for (auto b : this->device_prefix_) {
-    hash ^= b;
-    hash *= 16777619UL;
-  }
-  return hash ^ 0x48584C54UL;  // "HXLT"
-}
-
 uint8_t HXLightBLEAdvLight::next_sequence_() {
   const uint8_t seq = this->sequence_;
   this->sequence_ = static_cast<uint8_t>(this->sequence_ + 1);
-  this->save_sequence_();
+  if (this->restore_sequence_) this->persist_state_();
   return seq;
 }
 
-void HXLightBLEAdvLight::save_sequence_() {
-  if (this->restore_sequence_) {
-    this->sequence_pref_.save(&this->sequence_);
+void HXLightBLEAdvLight::persist_state_() {
+  HXLightPersist blob{};
+  std::copy(this->device_prefix_.begin(), this->device_prefix_.end(), std::begin(blob.prefix));
+  blob.sequence = this->sequence_;
+  blob.paired = this->has_prefix_ ? 1 : 0;
+  this->pref_.save(&blob);
+}
+
+void HXLightBLEAdvLight::publish_status_(const std::string &status) {
+  if (this->status_sensor_ != nullptr) this->status_sensor_->publish_state(status);
+}
+
+void HXLightBLEAdvLight::request_pair_sync() {
+  if (this->controller_ == nullptr) {
+    ESP_LOGE(TAG, "Cannot start Pair/Sync: no controller configured");
+    return;
   }
+  this->controller_->arm_resync(this, 30);
+}
+
+bool HXLightBLEAdvLight::try_apply_resync(const std::array<uint8_t, 8> &prefix, uint8_t next_sequence) {
+  const bool was_paired = this->has_prefix_;
+  if (this->prefix_pinned_) {
+    if (prefix != this->device_prefix_) return false;  // packet belongs to a different lamp
+  } else {
+    this->device_prefix_ = prefix;
+    this->has_prefix_ = true;
+  }
+
+  this->sequence_ = next_sequence;
+  this->persist_state_();
+
+  char buf[40];
+  snprintf(buf, sizeof(buf), "%s (seq=%u)", was_paired ? "Synced" : "Paired",
+           static_cast<unsigned>(next_sequence));
+  this->publish_status_(buf);
+  ESP_LOGI(TAG, "HXLight %s via app; sequence set to %u", was_paired ? "resynced" : "paired",
+           static_cast<unsigned>(next_sequence));
+  return true;
+}
+
+void HXLightBLEAdvLight::on_pair_sync_armed(uint32_t window_seconds) {
+  char buf[48];
+  snprintf(buf, sizeof(buf), "Waiting for app (%us)", static_cast<unsigned>(window_seconds));
+  this->publish_status_(buf);
+}
+
+void HXLightBLEAdvLight::on_pair_sync_timeout() {
+  ESP_LOGW(TAG, "Pair/Sync timed out; no HXLight app advertisement captured");
+  this->publish_status_("Timed out");
 }
 
 void HXLightBLEAdvLight::send_on_() {

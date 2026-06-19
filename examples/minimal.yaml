@@ -36,10 +36,16 @@ light:
     id: floor_lamp
     name: "Floor Lamp"
     controller_id: hxlight_controller
-    device_prefix: "6db643593a60a7a1"
-    initial_sequence: 130
-    restore_sequence: true
+    # device_prefix is omitted: pair from the app using the button below.
+    # (To pin a known lamp instead, add e.g. device_prefix: "6db643593a60a7a1")
     cold_white_color_temperature: 5000 K
     warm_white_color_temperature: 3000 K
     default_transition_length: 0s
     restore_mode: RESTORE_DEFAULT_OFF
+    # Press this button in Home Assistant, then press ON/OFF in the HXLight app
+    # within 30s. The lamp learns its device_prefix and rolling sequence.
+    pair_sync:
+      name: "Floor Lamp Pair/Sync"
+    # Shows live pairing status: Unpaired / Waiting for app (30s) / Paired / Synced.
+    pair_sync_status:
+      name: "Floor Lamp Sync Status"

@@ -7,6 +7,7 @@
 #ifdef USE_ESP32
 #include <array>
 #include <deque>
+#include <vector>
 
 #ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_bt.h>
@@ -15,6 +16,8 @@
 #include <esp_err.h>
 
 namespace esphome::hxlight_ble_adv {
+
+class HXLightBLEAdvLight;
 
 struct HXLightAdvertisementTask {
   std::array<uint8_t, 31> data{};
@@ -42,6 +45,12 @@ class HXLightBLEAdvController : public Component {
 
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
 
+  void register_light(HXLightBLEAdvLight *light) { this->lights_.push_back(light); }
+
+  // Arms a bounded scan that captures the next matching HXLight app
+  // advertisement and offers it to the target light for pairing/resync.
+  void arm_resync(HXLightBLEAdvLight *target, uint32_t window_seconds);
+
  protected:
   enum class State : uint8_t { IDLE, SETTING_DATA, STARTING, ADVERTISING, STOPPING };
 
@@ -50,6 +59,8 @@ class HXLightBLEAdvController : public Component {
   void finish_current_();
   void start_discovery_scan_();
   void handle_discovery_result_(const esp_ble_gap_cb_param_t *param);
+  void end_resync_(bool success);
+  bool scan_capture_active_() const { return this->discovery_enabled_ || this->resync_active_; }
   uint16_t interval_units_(uint16_t ms) const;
 
   uint16_t adv_interval_min_ms_{30};
@@ -69,6 +80,11 @@ class HXLightBLEAdvController : public Component {
   bool discovery_scanning_{false};
   bool have_last_discovery_packet_{false};
   std::array<uint8_t, 31> last_discovery_packet_{};
+
+  std::vector<HXLightBLEAdvLight *> lights_{};
+  bool resync_active_{false};
+  uint32_t resync_window_s_{30};
+  HXLightBLEAdvLight *resync_target_{nullptr};
 };
 
 }  // namespace esphome::hxlight_ble_adv

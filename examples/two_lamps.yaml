@@ -27,6 +27,9 @@ hxlight_ble_adv:
   adv_gap: 60ms
 
 light:
+  # Each lamp pins its own device_prefix. Its Pair/Sync button only re-syncs
+  # the rolling sequence (it never overwrites a pinned prefix), so use it to
+  # recover after the HXLight app is used on that lamp.
   - platform: hxlight_ble_adv
     name: "Living Room Floor Lamp"
     controller_id: hxlight_controller
@@ -35,6 +38,10 @@ light:
     restore_sequence: true
     default_transition_length: 0s
     restore_mode: RESTORE_DEFAULT_OFF
+    pair_sync:
+      name: "Living Room Lamp Sync"
+    pair_sync_status:
+      name: "Living Room Lamp Sync Status"
 
   - platform: hxlight_ble_adv
     name: "Bedroom Floor Lamp"
@@ -44,3 +51,7 @@ light:
     restore_sequence: true
     default_transition_length: 0s
     restore_mode: RESTORE_DEFAULT_OFF
+    pair_sync:
+      name: "Bedroom Lamp Sync"
+    pair_sync_status:
+      name: "Bedroom Lamp Sync Status"

@@ -1,7 +1,9 @@
 #include "hxlight_ble_adv.h"
+#include "hxlight_ble_adv_light.h"
 
 #ifdef USE_ESP32
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 
@@ -115,7 +117,7 @@ void HXLightBLEAdvController::dump_config() {
 }
 
 void HXLightBLEAdvController::start_discovery_scan_() {
-  if (!this->discovery_enabled_ || this->discovery_scan_param_pending_ || this->discovery_scan_start_pending_ ||
+  if (!this->scan_capture_active_() || this->discovery_scan_param_pending_ || this->discovery_scan_start_pending_ ||
       this->discovery_scanning_) {
     return;
   }
@@ -130,7 +132,7 @@ void HXLightBLEAdvController::start_discovery_scan_() {
 }
 
 void HXLightBLEAdvController::handle_discovery_result_(const esp_ble_gap_cb_param_t *param) {
-  if (!this->discovery_enabled_ || param->scan_rst.search_evt != ESP_GAP_SEARCH_INQ_RES_EVT) return;
+  if (!this->scan_capture_active_() || param->scan_rst.search_evt != ESP_GAP_SEARCH_INQ_RES_EVT) return;
 
   const uint8_t len = param->scan_rst.adv_data_len;
   const uint8_t *data = param->scan_rst.ble_adv;
@@ -158,13 +160,68 @@ void HXLightBLEAdvController::handle_discovery_result_(const esp_ble_gap_cb_para
   const uint8_t next_initial_sequence = static_cast<uint8_t>(observed_sequence + 1);
   const char *command = guess_command(data, command_buffer, sizeof(command_buffer));
 
-  ESP_LOGI(TAG, "Discovered HXLight packet from %s RSSI=%d command=%s", address, param->scan_rst.rssi, command);
-  ESP_LOGI(TAG, "  raw: %s", raw);
-  ESP_LOGI(TAG, "  device_prefix: \"%s\"", prefix);
-  ESP_LOGI(TAG, "  observed_sequence: 0x%02X / %u", static_cast<unsigned>(observed_sequence),
-           static_cast<unsigned>(observed_sequence));
-  ESP_LOGI(TAG, "  initial_sequence: %u", static_cast<unsigned>(next_initial_sequence));
-  ESP_LOGI(TAG, "Copy the latest device_prefix and initial_sequence into YAML, set discovery: false, then recompile");
+  if (this->discovery_enabled_) {
+    ESP_LOGI(TAG, "Discovered HXLight packet from %s RSSI=%d command=%s", address, param->scan_rst.rssi, command);
+    ESP_LOGI(TAG, "  raw: %s", raw);
+    ESP_LOGI(TAG, "  device_prefix: \"%s\"", prefix);
+    ESP_LOGI(TAG, "  observed_sequence: 0x%02X / %u", static_cast<unsigned>(observed_sequence),
+             static_cast<unsigned>(observed_sequence));
+    ESP_LOGI(TAG, "  initial_sequence: %u", static_cast<unsigned>(next_initial_sequence));
+    ESP_LOGI(TAG, "Copy the latest device_prefix and initial_sequence into YAML, set discovery: false, then recompile");
+  }
+
+  if (this->resync_active_ && this->resync_target_ != nullptr) {
+    std::array<uint8_t, 8> prefix_bytes{};
+    std::copy(data + 7, data + 15, prefix_bytes.begin());
+    if (this->resync_target_->try_apply_resync(prefix_bytes, next_initial_sequence)) {
+      this->end_resync_(true);
+    }
+  }
+}
+
+void HXLightBLEAdvController::arm_resync(HXLightBLEAdvLight *target, uint32_t window_seconds) {
+  if (target == nullptr) return;
+  if (this->resync_active_) {
+    ESP_LOGW(TAG, "Pair/Sync already in progress; ignoring request");
+    return;
+  }
+  if (this->discovery_enabled_) {
+    ESP_LOGW(TAG, "Pair/Sync is unavailable while discovery mode is enabled");
+    return;
+  }
+
+  this->resync_target_ = target;
+  this->resync_window_s_ = window_seconds;
+  this->resync_active_ = true;
+  this->have_last_discovery_packet_ = false;  // ensure we capture a fresh packet
+  ESP_LOGI(TAG, "Pair/Sync armed for %us; press ON/OFF in the HXLight app now",
+           static_cast<unsigned>(window_seconds));
+  target->on_pair_sync_armed(window_seconds);
+
+  // Backstop in case the scan-complete event never arrives.
+  this->set_timeout("hxlight_resync_timeout", (window_seconds * 1000) + 2000, [this]() { this->end_resync_(false); });
+  this->start_discovery_scan_();
+}
+
+void HXLightBLEAdvController::end_resync_(bool success) {
+  if (!this->resync_active_) return;
+  this->resync_active_ = false;
+  this->cancel_timeout("hxlight_resync_timeout");
+
+  HXLightBLEAdvLight *target = this->resync_target_;
+  this->resync_target_ = nullptr;
+
+  if (this->discovery_scanning_ || this->discovery_scan_start_pending_) {
+    esp_ble_gap_stop_scanning();
+  }
+  this->discovery_scanning_ = false;
+  this->discovery_scan_start_pending_ = false;
+  this->discovery_scan_param_pending_ = false;
+
+  if (!success && target != nullptr) target->on_pair_sync_timeout();
+
+  // Resume any commands queued while capture was in progress.
+  this->start_next_();
 }
 
 bool HXLightBLEAdvController::enqueue(const std::array<uint8_t, 31> &data, uint16_t duration_ms, uint16_t gap_ms) {
@@ -185,6 +242,9 @@ bool HXLightBLEAdvController::enqueue(const std::array<uint8_t, 31> &data, uint1
 }
 
 void HXLightBLEAdvController::start_next_() {
+  // Pause transmission while capturing an app advertisement, to avoid GAP
+  // scan/advertise collisions. Queued commands resume when resync ends.
+  if (this->resync_active_) return;
   if (this->state_ != State::IDLE || this->queue_.empty()) return;
 
   this->current_ = this->queue_.front();
@@ -220,7 +280,7 @@ void HXLightBLEAdvController::gap_event_handler(esp_gap_ble_cb_event_t event, es
   esp_err_t err;
   switch (event) {
     case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT:
-      if (!this->discovery_enabled_ || !this->discovery_scan_param_pending_) return;
+      if (!this->scan_capture_active_() || !this->discovery_scan_param_pending_) return;
       this->discovery_scan_param_pending_ = false;
       if (param->scan_param_cmpl.status != ESP_BT_STATUS_SUCCESS) {
         ESP_LOGW(TAG, "HXLight discovery scan parameter setup failed: status=%u",
@@ -228,7 +288,8 @@ void HXLightBLEAdvController::gap_event_handler(esp_gap_ble_cb_event_t event, es
         this->set_timeout("hxlight_discovery_retry", 5000, [this]() { this->start_discovery_scan_(); });
         return;
       }
-      err = esp_ble_gap_start_scanning(DISCOVERY_SCAN_DURATION_SECONDS);
+      err = esp_ble_gap_start_scanning(this->resync_active_ ? this->resync_window_s_
+                                                            : DISCOVERY_SCAN_DURATION_SECONDS);
       if (err != ESP_OK) {
         ESP_LOGW(TAG, "Failed to start HXLight discovery scan: %s", esp_err_to_name(err));
         this->set_timeout("hxlight_discovery_retry", 5000, [this]() { this->start_discovery_scan_(); });
@@ -238,7 +299,7 @@ void HXLightBLEAdvController::gap_event_handler(esp_gap_ble_cb_event_t event, es
       break;
 
     case ESP_GAP_BLE_SCAN_START_COMPLETE_EVT:
-      if (!this->discovery_enabled_ || !this->discovery_scan_start_pending_) return;
+      if (!this->scan_capture_active_() || !this->discovery_scan_start_pending_) return;
       this->discovery_scan_start_pending_ = false;
       if (param->scan_start_cmpl.status != ESP_BT_STATUS_SUCCESS) {
         this->discovery_scanning_ = false;
@@ -252,11 +313,15 @@ void HXLightBLEAdvController::gap_event_handler(esp_gap_ble_cb_event_t event, es
       break;
 
     case ESP_GAP_BLE_SCAN_RESULT_EVT:
-      if (!this->discovery_enabled_) return;
+      if (!this->scan_capture_active_()) return;
       if (param->scan_rst.search_evt == ESP_GAP_SEARCH_INQ_CMPL_EVT) {
         if (this->discovery_scanning_) {
           this->discovery_scanning_ = false;
-          this->set_timeout("hxlight_discovery_restart", 100, [this]() { this->start_discovery_scan_(); });
+          if (this->resync_active_) {
+            this->end_resync_(false);
+          } else {
+            this->set_timeout("hxlight_discovery_restart", 100, [this]() { this->start_discovery_scan_(); });
+          }
         }
         return;
       }
@@ -272,6 +337,7 @@ void HXLightBLEAdvController::gap_event_handler(esp_gap_ble_cb_event_t event, es
         ESP_LOGW(TAG, "HXLight discovery scan stop failed: status=%u",
                  static_cast<unsigned>(param->scan_stop_cmpl.status));
       }
+      // Only discovery mode auto-restarts; resync stops are handled in end_resync_().
       this->set_timeout("hxlight_discovery_restart", 1000, [this]() { this->start_discovery_scan_(); });
       break;
 

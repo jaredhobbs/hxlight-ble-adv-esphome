@@ -61,16 +61,18 @@ light:
     id: floor_lamp
     name: "Floor Lamp"
     controller_id: hxlight_controller
-    device_prefix: "6db643593a60a7a1"
-    initial_sequence: 130
-    restore_sequence: true
+    # No device_prefix: pair from the app with the button below.
     cold_white_color_temperature: 5000 K
     warm_white_color_temperature: 3000 K
     default_transition_length: 0s
     restore_mode: RESTORE_DEFAULT_OFF
+    pair_sync:
+      name: "Floor Lamp Pair/Sync"
+    pair_sync_status:
+      name: "Floor Lamp Sync Status"
 ```
 
-After ESPHome adopts the device into Home Assistant, `light.floor_lamp` should support brightness and color temperature directly.
+After ESPHome adopts the device into Home Assistant, press **Floor Lamp Pair/Sync** and then press ON/OFF in the HXLight app within 30 seconds. The lamp learns its `device_prefix` and rolling sequence (persisted across reboots), after which `light.floor_lamp` supports brightness and color temperature directly. See [Pairing and resyncing](#pairing-and-resyncing).
 
 ## Configuration reference
 
@@ -93,8 +95,10 @@ After ESPHome adopts the device into Home Assistant, `light.floor_lamp` should s
 | `platform` | yes | — | Must be `hxlight_ble_adv`. |
 | `name` | yes | — | Home Assistant entity name. |
 | `controller_id` | yes | — | ID of the `hxlight_ble_adv` controller. |
-| `device_prefix` | yes | — | 8-byte prefix learned from the lamp/app. See discovery below. |
-| `initial_sequence` | no | `0` | Next sequence value. See discovery below. |
+| `device_prefix` | no | learned | 8-byte lamp/app prefix. Omit it and pair from the app with the `pair_sync` button, or pin it explicitly (recommended for multi-lamp). A pinned prefix is never overwritten by pairing. |
+| `initial_sequence` | no | `0` | Starting sequence value. Usually unnecessary now — pairing/resync sets it from the app. |
+| `pair_sync` | no | — | Adds a button entity that arms pairing/resync for this light (learns prefix when unpaired, resyncs the sequence when paired). Sub-keys: `name`, `id`. |
+| `pair_sync_status` | no | — | Adds a text-sensor showing live status: `Unpaired` / `Waiting for app (30s)` / `Paired (seq=N)` / `Synced (seq=N)` / `Timed out`. Sub-keys: `name`, `id`. |
 | `restore_sequence` | no | `true` | Persist rolling sequence in ESPHome preferences. Keep enabled. |
 | `cold_white_color_temperature` | no | `5000 K` | Lamp cold endpoint. Use your lamp's advertised spec. |
 | `warm_white_color_temperature` | no | `3000 K` | Lamp warm endpoint. Use your lamp's advertised spec. |
@@ -106,9 +110,47 @@ After ESPHome adopts the device into Home Assistant, `light.floor_lamp` should s
 | `send_color_temp_on_turn_on` | no | `true` | Sends stored/current CT after ON. |
 | `default_transition_length` | no | ESPHome default | Strongly recommend `0s` to avoid many queued commands. |
 
-## Discovering your `device_prefix` and `initial_sequence`
+## Pairing and resyncing
 
-Each lamp/app pairing has an 8-byte `device_prefix` and a rolling one-byte sequence. Discovery mode lets ESPHome scan for the Android HXLight app's BLE advertisements and print the YAML values directly.
+The `pair_sync` button is the easiest way to set up a lamp and to recover when the HXLight app has been used.
+
+1. Press the light's **Pair/Sync** button in Home Assistant.
+2. Within 30 seconds, press ON or OFF for that lamp in the HXLight Android/iOS app.
+3. The ESP32 captures that app advertisement and:
+   - **Unpaired light** (no `device_prefix`): learns the `device_prefix` and sets the sequence. Both are persisted, so it stays paired across reboots.
+   - **Paired light**: resyncs the rolling sequence (use this whenever the app has advanced it and ESPHome control stopped working).
+
+The `pair_sync_status` text-sensor shows progress: `Unpaired` → `Waiting for app (30s)` → `Paired (seq=N)` / `Synced (seq=N)`, or `Timed out` if no advertisement was captured.
+
+Notes:
+- The `device_prefix` is an 8-byte secret the app assigned when it paired with the lamp. It can only be observed from an app broadcast (the protocol is one-way and the value isn't enumerable), so the one app tap during pairing is required.
+- A **pinned** `device_prefix` (set in YAML) is never overwritten — its button only resyncs the sequence and ignores advertisements from other lamps.
+- Pair/Sync briefly scans and pauses transmission; it is unavailable while controller `discovery: true` is set.
+
+### Home Assistant button with on-screen instructions
+
+ESPHome can't open a dialog itself, but a Lovelace button card can show the instructions in a confirmation popup before arming:
+
+```yaml
+type: button
+name: Pair / Sync Floor Lamp
+icon: mdi:bluetooth-connect
+tap_action:
+  action: call-service
+  service: button.press
+  target:
+    entity_id: button.floor_lamp_pair_sync
+  confirmation:
+    text: >-
+      Press CONFIRM, then within 30 seconds press ON or OFF for this lamp in the
+      HXLight app. Watch "Floor Lamp Sync Status" for the result.
+```
+
+Pair the card with an Entities card showing the `Floor Lamp Sync Status` sensor so you can see the live countdown/result.
+
+## Discovering your `device_prefix` and `initial_sequence` (manual alternative)
+
+Pairing with the `pair_sync` button (above) is the recommended path. Discovery mode remains available if you prefer to read the raw values from logs or pin them in YAML. Each lamp/app pairing has an 8-byte `device_prefix` and a rolling one-byte sequence; discovery mode scans for the Android HXLight app's BLE advertisements and prints the YAML values directly.
 
 1. Flash a temporary config near the lamp with discovery enabled:
 
@@ -265,7 +307,7 @@ Avoid dragging the slider rapidly. HA may send many intermediate light states; e
 
 ### It worked, then stopped after using HXLight
 
-Using HXLight advances the sequence. Capture one fresh raw packet from HXLight, run `tools/parse_raw.py`, update `initial_sequence`, and reflash. Until runtime resync exists, avoid mixing HXLight and ESPHome control.
+Using the HXLight app advances the rolling sequence, so ESPHome falls out of sync. Press the lamp's **Pair/Sync** button and tap ON/OFF in the app within 30 seconds — the sequence resyncs with no reflash. See [Pairing and resyncing](#pairing-and-resyncing). (Add a `pair_sync` button to the light if you haven't yet.)
 
 ### Compile errors around Bluetooth advertising
 

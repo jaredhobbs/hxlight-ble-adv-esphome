@@ -1,8 +1,10 @@
 """Light platform for HXLight/JOOFO BLE advertising lamps."""
 
+import zlib
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import light
+from esphome.components import button, light, text_sensor
 from esphome.const import (
     CONF_COLD_WHITE_COLOR_TEMPERATURE,
     CONF_ID,
@@ -12,7 +14,7 @@ from esphome.const import (
 
 from . import HXLightBLEAdvController, hxlight_ble_adv_ns
 
-AUTO_LOAD = ["light"]
+AUTO_LOAD = ["light", "button", "text_sensor"]
 DEPENDENCIES = ["hxlight_ble_adv"]
 
 CONF_CONTROLLER_ID = "controller_id"
@@ -25,9 +27,14 @@ CONF_FLAGS = "flags"
 CONF_SEND_ON_WITH_STATE = "send_on_with_state"
 CONF_SEND_BRIGHTNESS_ON_TURN_ON = "send_brightness_on_turn_on"
 CONF_SEND_COLOR_TEMP_ON_TURN_ON = "send_color_temp_on_turn_on"
+CONF_PAIR_SYNC = "pair_sync"
+CONF_PAIR_SYNC_STATUS = "pair_sync_status"
 
 HXLightBLEAdvLight = hxlight_ble_adv_ns.class_(
     "HXLightBLEAdvLight", light.LightOutput, cg.Component
+)
+HXLightPairSyncButton = hxlight_ble_adv_ns.class_(
+    "HXLightPairSyncButton", button.Button
 )
 
 
@@ -55,7 +62,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(HXLightBLEAdvLight),
             cv.Required(CONF_CONTROLLER_ID): cv.use_id(HXLightBLEAdvController),
-            cv.Required(CONF_DEVICE_PREFIX): _hex_bytes_exact(8),
+            cv.Optional(CONF_DEVICE_PREFIX): _hex_bytes_exact(8),
             cv.Optional(CONF_INITIAL_SEQUENCE, default=0): cv.int_range(min=0, max=255),
             cv.Optional(CONF_RESTORE_SEQUENCE, default=True): cv.boolean,
             cv.Optional(CONF_COLD_WHITE_COLOR_TEMPERATURE, default="5000 K"): cv.color_temperature,
@@ -66,6 +73,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SEND_ON_WITH_STATE, default=True): cv.boolean,
             cv.Optional(CONF_SEND_BRIGHTNESS_ON_TURN_ON, default=True): cv.boolean,
             cv.Optional(CONF_SEND_COLOR_TEMP_ON_TURN_ON, default=True): cv.boolean,
+            cv.Optional(CONF_PAIR_SYNC): button.button_schema(HXLightPairSyncButton),
+            cv.Optional(CONF_PAIR_SYNC_STATUS): text_sensor.text_sensor_schema(),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _validate_config,
@@ -73,14 +82,22 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    prefix = config[CONF_DEVICE_PREFIX]
-    prefix_arr = [cg.RawExpression(f"0x{prefix[i:i + 2]}") for i in range(0, len(prefix), 2)]
-
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     await cg.register_component(var, config)
     await light.register_light(var, config)
 
-    cg.add(var.set_device_prefix(*prefix_arr))
+    # device_prefix is optional: omit it and learn it at runtime via the
+    # Pair/Sync button, or pin it here for explicit/multi-lamp setups.
+    if CONF_DEVICE_PREFIX in config:
+        prefix = config[CONF_DEVICE_PREFIX]
+        prefix_arr = [cg.RawExpression(f"0x{prefix[i:i + 2]}") for i in range(0, len(prefix), 2)]
+        cg.add(var.set_device_prefix(*prefix_arr))
+
+    # Stable, prefix-independent preference key so a learned prefix and the
+    # rolling sequence survive reboots even before the lamp is paired.
+    preference_key = zlib.crc32(str(config[CONF_OUTPUT_ID]).encode()) & 0xFFFFFFFF
+    cg.add(var.set_preference_key(preference_key))
+
     controller = await cg.get_variable(config[CONF_CONTROLLER_ID])
     cg.add(var.set_controller(controller))
 
@@ -96,3 +113,11 @@ async def to_code(config):
     cg.add(var.set_send_on_with_state(config[CONF_SEND_ON_WITH_STATE]))
     cg.add(var.set_send_brightness_on_turn_on(config[CONF_SEND_BRIGHTNESS_ON_TURN_ON]))
     cg.add(var.set_send_color_temp_on_turn_on(config[CONF_SEND_COLOR_TEMP_ON_TURN_ON]))
+
+    if CONF_PAIR_SYNC in config:
+        pair_sync_button = await button.new_button(config[CONF_PAIR_SYNC])
+        cg.add(pair_sync_button.set_parent(var))
+
+    if CONF_PAIR_SYNC_STATUS in config:
+        status_sensor = await text_sensor.new_text_sensor(config[CONF_PAIR_SYNC_STATUS])
+        cg.add(var.set_status_sensor(status_sensor))
