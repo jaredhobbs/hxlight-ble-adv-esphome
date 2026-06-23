@@ -23,11 +23,16 @@ namespace esphome::hxlight_ble_adv {
 
 class HXLightBLEAdvLight;
 
+// Identifies what a queued advertisement does, so newer commands can supersede
+// stale queued ones (e.g. an OFF cancels a pending ON/brightness/CCT).
+enum class HXAdvKind : uint8_t { ON, OFF, BRIGHTNESS, CCT };
+
 struct HXLightAdvertisementTask {
   std::array<uint8_t, 31> data{};
-  uint16_t duration_ms{1000};
+  uint16_t duration_ms{800};
   uint16_t gap_ms{60};
   uint8_t repeats{1};
+  HXAdvKind kind{HXAdvKind::ON};
 };
 
 class HXLightBLEAdvController : public Component {
@@ -49,7 +54,7 @@ class HXLightBLEAdvController : public Component {
   uint16_t get_default_duration() const { return this->adv_duration_ms_; }
   uint16_t get_default_gap() const { return this->adv_gap_ms_; }
 
-  bool enqueue(const std::array<uint8_t, 31> &data, uint16_t duration_ms = 0, uint16_t gap_ms = 0);
+  bool enqueue(const std::array<uint8_t, 31> &data, HXAdvKind kind, uint16_t duration_ms = 0, uint16_t gap_ms = 0);
 
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
 
@@ -76,7 +81,7 @@ class HXLightBLEAdvController : public Component {
 
   uint16_t adv_interval_min_ms_{30};
   uint16_t adv_interval_max_ms_{30};
-  uint16_t adv_duration_ms_{1000};
+  uint16_t adv_duration_ms_{800};
   uint16_t adv_gap_ms_{60};
   uint8_t max_queue_size_{32};
   uint8_t command_repeat_{3};

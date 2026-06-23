@@ -77,8 +77,6 @@ class HXLightBLEAdvLight : public light::LightOutput, public Component {
   bool has_prefix() const { return this->has_prefix_; }
 
  protected:
-  enum CommandType : uint8_t { COMMAND_ON, COMMAND_OFF, COMMAND_BRIGHTNESS, COMMAND_CCT };
-
   static uint16_t crc16_x25_(const uint8_t *data, size_t len);
   uint8_t next_sequence_();
   void persist_state_();
@@ -88,7 +86,7 @@ class HXLightBLEAdvLight : public light::LightOutput, public Component {
   void send_off_();
   void send_brightness_(uint8_t level);
   void send_cct_(uint8_t cold, uint8_t warm);
-  void send_payload11_(const std::array<uint8_t, 11> &payload11, CommandType type);
+  void send_payload11_(const std::array<uint8_t, 11> &payload11, HXAdvKind kind);
 
   std::array<uint8_t, 8> device_prefix_{};
   bool prefix_pinned_{false};

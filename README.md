@@ -52,7 +52,7 @@ hxlight_ble_adv:
   id: hxlight_controller
   adv_interval_min: 30ms
   adv_interval_max: 30ms
-  adv_duration: 1000ms
+  adv_duration: 800ms
   adv_gap: 60ms
   max_queue_size: 32
 
@@ -83,7 +83,7 @@ After ESPHome adopts the device into Home Assistant, press **Floor Lamp Pair/Syn
 | `id` | no | auto | Controller ID used by one or more lights. |
 | `adv_interval_min` | no | `30ms` | BLE advertising interval lower bound. Increase if BLE/Wi-Fi is unstable. |
 | `adv_interval_max` | no | `30ms` | BLE advertising interval upper bound. Keep equal to min for predictable behavior. |
-| `adv_duration` | no | `1000ms` | How long each generated command is advertised. Raise it (e.g. `2000ms`–`3000ms`) if commands are missed after the lamp has been idle/off a while (some lamps listen sparsely in standby); lower it for snappier response. |
+| `adv_duration` | no | `800ms` | How long each generated command is advertised per broadcast. Total airtime per command ≈ `adv_duration × command_repeat`; raise either if commands are missed, lower for snappier response. |
 | `adv_gap` | no | `60ms` | Pause between queued commands. |
 | `max_queue_size` | no | `32` | Drops commands if HA sends too many rapid changes. |
 | `command_repeat` | no | `3` | How many times each command is broadcast (same frame/sequence, `adv_gap` between repeats). Total airtime per command ≈ `adv_duration × command_repeat`. Lamps that listen on a slow duty cycle need enough airtime to catch a command; raise this (or `adv_duration`) if commands are missed, lower it for snappier response. |

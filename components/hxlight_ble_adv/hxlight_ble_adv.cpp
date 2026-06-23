@@ -267,7 +267,41 @@ void HXLightBLEAdvController::end_resync_(bool success) {
   this->start_next_();
 }
 
-bool HXLightBLEAdvController::enqueue(const std::array<uint8_t, 31> &data, uint16_t duration_ms, uint16_t gap_ms) {
+// Whether an incoming command makes an already-queued one obsolete. An OFF
+// cancels any pending ON/brightness/CCT (they would re-light or are moot); an
+// ON cancels a pending OFF; a brightness/CCT replaces an older pending value of
+// the same kind (only the latest matters).
+static bool supersedes(HXAdvKind incoming, HXAdvKind queued) {
+  switch (incoming) {
+    case HXAdvKind::OFF:
+      return queued == HXAdvKind::ON || queued == HXAdvKind::BRIGHTNESS || queued == HXAdvKind::CCT;
+    case HXAdvKind::ON:
+      return queued == HXAdvKind::OFF;
+    case HXAdvKind::BRIGHTNESS:
+      return queued == HXAdvKind::BRIGHTNESS;
+    case HXAdvKind::CCT:
+      return queued == HXAdvKind::CCT;
+  }
+  return false;
+}
+
+bool HXLightBLEAdvController::enqueue(const std::array<uint8_t, 31> &data, HXAdvKind kind, uint16_t duration_ms,
+                                     uint16_t gap_ms) {
+  // Drop any queued commands this one supersedes so the new command isn't stuck
+  // behind stale repeats (e.g. OFF waiting out a long ON+brightness+CCT batch).
+  for (auto it = this->queue_.begin(); it != this->queue_.end();) {
+    if (supersedes(kind, it->kind)) {
+      it = this->queue_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+  // If the in-flight command is now obsolete, stop its remaining repeats so the
+  // new command airs promptly (it still gets its own full repeat count).
+  if (this->current_.repeats > 1 && supersedes(kind, this->current_.kind)) {
+    this->current_.repeats = 1;
+  }
+
   if (this->queue_.size() >= this->max_queue_size_) {
     ESP_LOGW(TAG, "Advertisement queue full; dropping HXLight command");
     return false;
@@ -278,6 +312,7 @@ bool HXLightBLEAdvController::enqueue(const std::array<uint8_t, 31> &data, uint1
   task.duration_ms = duration_ms == 0 ? this->adv_duration_ms_ : duration_ms;
   task.gap_ms = gap_ms == 0 ? this->adv_gap_ms_ : gap_ms;
   task.repeats = this->command_repeat_ < 1 ? 1 : this->command_repeat_;
+  task.kind = kind;
   this->queue_.push_back(task);
   ESP_LOGVV(TAG, "Queued HXLight raw advertisement; queue=%u", static_cast<unsigned>(this->queue_.size()));
 

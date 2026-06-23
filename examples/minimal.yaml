@@ -27,7 +27,7 @@ hxlight_ble_adv:
   id: hxlight_controller
   adv_interval_min: 30ms
   adv_interval_max: 30ms
-  adv_duration: 1000ms
+  adv_duration: 800ms
   adv_gap: 60ms
   max_queue_size: 32
 

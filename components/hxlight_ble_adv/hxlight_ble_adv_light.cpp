@@ -207,26 +207,26 @@ void HXLightBLEAdvLight::on_pair_sync_timeout() {
 }
 
 void HXLightBLEAdvLight::send_on_() {
-  this->send_payload11_({0x86, 0x31, 0x17, 0x01, 0x00, 0x01, 0x01, 0xFF, 0xFE, 0x55, 0x55}, COMMAND_ON);
+  this->send_payload11_({0x86, 0x31, 0x17, 0x01, 0x00, 0x01, 0x01, 0xFF, 0xFE, 0x55, 0x55}, HXAdvKind::ON);
 }
 
 void HXLightBLEAdvLight::send_off_() {
-  this->send_payload11_({0x86, 0x31, 0x17, 0x01, 0x00, 0x01, 0x02, 0xFF, 0xFE, 0x55, 0x55}, COMMAND_OFF);
+  this->send_payload11_({0x86, 0x31, 0x17, 0x01, 0x00, 0x01, 0x02, 0xFF, 0xFE, 0x55, 0x55}, HXAdvKind::OFF);
 }
 
 void HXLightBLEAdvLight::send_brightness_(uint8_t level) {
   if (level < 1) level = 1;
   if (level > 100) level = 100;
-  this->send_payload11_({0x83, 0x31, 0x17, 0x01, 0x05, 0x65, level, 0xFA, 0x9A, 0x55, 0x55}, COMMAND_BRIGHTNESS);
+  this->send_payload11_({0x83, 0x31, 0x17, 0x01, 0x05, 0x65, level, 0xFA, 0x9A, 0x55, 0x55}, HXAdvKind::BRIGHTNESS);
 }
 
 void HXLightBLEAdvLight::send_cct_(uint8_t cold, uint8_t warm) {
   if (cold > 100) cold = 100;
   if (warm > 100) warm = 100;
-  this->send_payload11_({0x83, 0x31, 0x17, 0x01, 0x07, 0x65, cold, warm, 0x9A, 0x55, 0x55}, COMMAND_CCT);
+  this->send_payload11_({0x83, 0x31, 0x17, 0x01, 0x07, 0x65, cold, warm, 0x9A, 0x55, 0x55}, HXAdvKind::CCT);
 }
 
-void HXLightBLEAdvLight::send_payload11_(const std::array<uint8_t, 11> &payload11, CommandType type) {
+void HXLightBLEAdvLight::send_payload11_(const std::array<uint8_t, 11> &payload11, HXAdvKind kind) {
   uint8_t seq = this->next_sequence_();
   uint8_t checksum = seq;
   for (auto b : payload11) checksum += b;
@@ -266,15 +266,15 @@ void HXLightBLEAdvLight::send_payload11_(const std::array<uint8_t, 11> &payload1
   frame[pos++] = 0x18;
 
   const char *type_s = "unknown";
-  switch (type) {
-    case COMMAND_ON: type_s = "on"; break;
-    case COMMAND_OFF: type_s = "off"; break;
-    case COMMAND_BRIGHTNESS: type_s = "brightness"; break;
-    case COMMAND_CCT: type_s = "cct"; break;
+  switch (kind) {
+    case HXAdvKind::ON: type_s = "on"; break;
+    case HXAdvKind::OFF: type_s = "off"; break;
+    case HXAdvKind::BRIGHTNESS: type_s = "brightness"; break;
+    case HXAdvKind::CCT: type_s = "cct"; break;
   }
 
   ESP_LOGD(TAG, "Sending %s seq=0x%02X checksum=0x%02X", type_s, seq, checksum);
-  this->controller_->enqueue(frame, this->command_duration_ms_, this->command_gap_ms_);
+  this->controller_->enqueue(frame, kind, this->command_duration_ms_, this->command_gap_ms_);
 }
 
 }  // namespace esphome::hxlight_ble_adv
