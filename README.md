@@ -86,6 +86,7 @@ After ESPHome adopts the device into Home Assistant, press **Floor Lamp Pair/Syn
 | `adv_duration` | no | `1000ms` | How long each generated command is advertised. Raise it (e.g. `2000ms`–`3000ms`) if commands are missed after the lamp has been idle/off a while (some lamps listen sparsely in standby); lower it for snappier response. |
 | `adv_gap` | no | `60ms` | Pause between queued commands. |
 | `max_queue_size` | no | `32` | Drops commands if HA sends too many rapid changes. |
+| `command_repeat` | no | `3` | How many times each command is broadcast (same frame/sequence, `adv_gap` between repeats). Total airtime per command ≈ `adv_duration × command_repeat`. Lamps that listen on a slow duty cycle need enough airtime to catch a command; raise this (or `adv_duration`) if commands are missed, lower it for snappier response. |
 | `tx_power` | no | `9` | BLE transmit power in dBm. One of `-12, -9, -6, -3, 0, 3, 6, 9`; `9` is max on the classic ESP32. Raise for range/reliability, lower only to reduce interference. |
 | `prefer_ble` | no | `true` | Biases the ESP32's shared Wi-Fi/BLE radio scheduler toward BLE, so command advertisements aren't starved by Wi-Fi. Pair with `wifi: { power_save_mode: none }` for the most reliable delivery. |
 | `discovery` | no | `false` | Temporarily scan for HXLight Android app advertisements and log `device_prefix`/`initial_sequence` YAML values. Disable before normal lamp control. |
@@ -288,14 +289,15 @@ CCT:        83 31 17 01 07 65 <cold> <warm> 9a 55 55 seq checksum
 
 ### Commands are missed
 
-Increase duration beyond the `2000ms` default:
+Increase the airtime per command — total airtime ≈ `adv_duration × command_repeat`. Raise either:
 
 ```yaml
 hxlight_ble_adv:
-  adv_duration: 3000ms
+  command_repeat: 5   # broadcast each command 5x
+  adv_duration: 1500ms
 ```
 
-or reduce Wi-Fi/BLE congestion by moving the ESP32 closer to the lamp.
+Some lamps listen on a slow duty cycle and miss a single short broadcast, so more repeats/longer duration is the most effective lever. You can also reduce Wi-Fi/BLE congestion by moving the ESP32 closer to the lamp.
 
 If commands intermittently stop landing and later recover on their own (a classic Wi-Fi/BLE coexistence symptom), max out the transmit power and prioritize BLE on the shared radio:
 

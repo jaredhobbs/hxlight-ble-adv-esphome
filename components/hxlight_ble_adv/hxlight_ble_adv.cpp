@@ -115,6 +115,7 @@ void HXLightBLEAdvController::dump_config() {
   ESP_LOGCONFIG(TAG, "  Adv duration: %ums", this->adv_duration_ms_);
   ESP_LOGCONFIG(TAG, "  Adv gap: %ums", this->adv_gap_ms_);
   ESP_LOGCONFIG(TAG, "  Max queue size: %u", this->max_queue_size_);
+  ESP_LOGCONFIG(TAG, "  Command repeat: %u", this->command_repeat_);
   ESP_LOGCONFIG(TAG, "  TX power: %ddBm", static_cast<int>(this->tx_power_dbm_));
 #ifdef HXLIGHT_HAS_COEXIST
   ESP_LOGCONFIG(TAG, "  Prefer BLE coexistence: %s", YESNO(this->prefer_ble_));
@@ -276,6 +277,7 @@ bool HXLightBLEAdvController::enqueue(const std::array<uint8_t, 31> &data, uint1
   task.data = data;
   task.duration_ms = duration_ms == 0 ? this->adv_duration_ms_ : duration_ms;
   task.gap_ms = gap_ms == 0 ? this->adv_gap_ms_ : gap_ms;
+  task.repeats = this->command_repeat_ < 1 ? 1 : this->command_repeat_;
   this->queue_.push_back(task);
   ESP_LOGVV(TAG, "Queued HXLight raw advertisement; queue=%u", static_cast<unsigned>(this->queue_.size()));
 
@@ -291,9 +293,18 @@ void HXLightBLEAdvController::start_next_() {
 
   this->current_ = this->queue_.front();
   this->queue_.pop_front();
-  this->state_ = State::SETTING_DATA;
+  this->begin_current_();
+}
 
-  ESP_LOGV(TAG, "Configuring HXLight advertisement for %ums", this->current_.duration_ms);
+void HXLightBLEAdvController::begin_current_() {
+  // Broadcast (or re-broadcast) the current command. Each command is sent
+  // command_repeat times so a lamp that listens on a slow duty cycle still
+  // catches it; repeats reuse the same frame/sequence and are idempotent.
+  if (this->resync_active_) return;
+
+  this->state_ = State::SETTING_DATA;
+  ESP_LOGV(TAG, "Configuring HXLight advertisement for %ums (%u broadcast(s) left)",
+           this->current_.duration_ms, static_cast<unsigned>(this->current_.repeats));
   esp_err_t err = esp_ble_gap_config_adv_data_raw(
       const_cast<uint8_t *>(this->current_.data.data()), this->current_.data.size());
   if (err != ESP_OK) {
@@ -315,6 +326,11 @@ void HXLightBLEAdvController::stop_current_() {
 
 void HXLightBLEAdvController::finish_current_() {
   this->state_ = State::IDLE;
+  if (this->current_.repeats > 1) {
+    this->current_.repeats--;
+    this->set_timeout("hxlight_adv_gap", this->current_.gap_ms, [this]() { this->begin_current_(); });
+    return;
+  }
   this->set_timeout("hxlight_adv_gap", this->current_.gap_ms, [this]() { this->start_next_(); });
 }
 
@@ -402,6 +418,7 @@ void HXLightBLEAdvController::gap_event_handler(esp_gap_ble_cb_event_t event, es
         return;
       }
       this->state_ = State::ADVERTISING;
+      ESP_LOGD(TAG, "HXLight adv broadcasting for %ums", this->current_.duration_ms);
       this->set_timeout("hxlight_adv_stop", this->current_.duration_ms, [this]() { this->stop_current_(); });
       break;
 

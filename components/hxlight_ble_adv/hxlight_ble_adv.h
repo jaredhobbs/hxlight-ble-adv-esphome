@@ -27,6 +27,7 @@ struct HXLightAdvertisementTask {
   std::array<uint8_t, 31> data{};
   uint16_t duration_ms{1000};
   uint16_t gap_ms{60};
+  uint8_t repeats{1};
 };
 
 class HXLightBLEAdvController : public Component {
@@ -40,6 +41,7 @@ class HXLightBLEAdvController : public Component {
   void set_adv_duration(uint16_t val) { this->adv_duration_ms_ = val; }
   void set_adv_gap(uint16_t val) { this->adv_gap_ms_ = val; }
   void set_max_queue_size(uint8_t val) { this->max_queue_size_ = val; }
+  void set_command_repeat(uint8_t val) { this->command_repeat_ = val; }
   void set_discovery(bool val) { this->discovery_enabled_ = val; }
   void set_tx_power(int8_t dbm) { this->tx_power_dbm_ = dbm; }
   void set_prefer_ble(bool val) { this->prefer_ble_ = val; }
@@ -61,6 +63,7 @@ class HXLightBLEAdvController : public Component {
   enum class State : uint8_t { IDLE, SETTING_DATA, STARTING, ADVERTISING, STOPPING };
 
   void start_next_();
+  void begin_current_();
   void stop_current_();
   void finish_current_();
   void start_discovery_scan_();
@@ -76,6 +79,7 @@ class HXLightBLEAdvController : public Component {
   uint16_t adv_duration_ms_{1000};
   uint16_t adv_gap_ms_{60};
   uint8_t max_queue_size_{32};
+  uint8_t command_repeat_{3};
   bool discovery_enabled_{false};
   int8_t tx_power_dbm_{9};
   bool prefer_ble_{true};
