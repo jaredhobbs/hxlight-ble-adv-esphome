@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fixed brightness being re-sent on every turn-on (even when unchanged and with `send_brightness_on_turn_on: false`). The off path stored an off-scaled brightness (`current_values` reports 0 brightness while off) into the change-tracking state, so the next turn-on always saw a delta. The last on-state brightness/CCT are now preserved across off, so an unchanged turn-on is a single `on` command.
 - Changed `send_brightness_on_turn_on` and `send_color_temp_on_turn_on` defaults to `false`. The lamp retains its last brightness/CCT, so re-sending them on every turn-on only piled up queued advertisements and added latency. Re-enable per-light if your lamp forgets these across power cycles.
 - Raised the default `adv_duration` from `700ms` to `1000ms` for more reliable delivery without a large latency hit.
 - Added controller `tx_power` (BLE transmit power, default `9` dBm / max on classic ESP32) and `prefer_ble` (default `true`, biases the ESP32's shared Wi-Fi/BLE radio toward BLE via the coexistence scheduler). Both improve command-advertisement reliability; pair `prefer_ble` with `wifi: { power_save_mode: none }` for best results.

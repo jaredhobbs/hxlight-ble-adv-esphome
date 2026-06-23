@@ -104,8 +104,9 @@ void HXLightBLEAdvLight::write_state(light::LightState *state) {
     }
     this->have_last_ = true;
     this->last_on_ = false;
-    this->last_brightness_ = brightness;
-    this->last_cold_ = cold;
+    // Preserve the last on-state brightness/CCT: current_values scale brightness
+    // by the off state (→ 0), so storing them here would corrupt the turn-on
+    // delta checks and re-send brightness on every turn-on.
     return;
   }
 
