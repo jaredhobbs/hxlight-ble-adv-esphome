@@ -25,7 +25,7 @@ class HXLightBLEAdvLight;
 
 struct HXLightAdvertisementTask {
   std::array<uint8_t, 31> data{};
-  uint16_t duration_ms{2000};
+  uint16_t duration_ms{1000};
   uint16_t gap_ms{60};
 };
 
@@ -73,7 +73,7 @@ class HXLightBLEAdvController : public Component {
 
   uint16_t adv_interval_min_ms_{30};
   uint16_t adv_interval_max_ms_{30};
-  uint16_t adv_duration_ms_{2000};
+  uint16_t adv_duration_ms_{1000};
   uint16_t adv_gap_ms_{60};
   uint8_t max_queue_size_{32};
   bool discovery_enabled_{false};

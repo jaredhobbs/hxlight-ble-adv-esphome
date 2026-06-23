@@ -71,8 +71,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_COMMAND_GAP): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_FLAGS, default=0x01): cv.int_range(min=0, max=255),
             cv.Optional(CONF_SEND_ON_WITH_STATE, default=True): cv.boolean,
-            cv.Optional(CONF_SEND_BRIGHTNESS_ON_TURN_ON, default=True): cv.boolean,
-            cv.Optional(CONF_SEND_COLOR_TEMP_ON_TURN_ON, default=True): cv.boolean,
+            cv.Optional(CONF_SEND_BRIGHTNESS_ON_TURN_ON, default=False): cv.boolean,
+            cv.Optional(CONF_SEND_COLOR_TEMP_ON_TURN_ON, default=False): cv.boolean,
             cv.Optional(CONF_PAIR_SYNC): button.button_schema(HXLightPairSyncButton),
             cv.Optional(CONF_PAIR_SYNC_STATUS): text_sensor.text_sensor_schema(),
         }

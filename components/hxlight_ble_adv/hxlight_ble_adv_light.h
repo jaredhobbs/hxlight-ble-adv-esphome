@@ -109,8 +109,8 @@ class HXLightBLEAdvLight : public light::LightOutput, public Component {
   uint8_t flags_{0x01};
 
   bool send_on_with_state_{true};
-  bool send_brightness_on_turn_on_{true};
-  bool send_color_temp_on_turn_on_{true};
+  bool send_brightness_on_turn_on_{false};
+  bool send_color_temp_on_turn_on_{false};
 
   bool have_last_{false};
   bool last_on_{false};

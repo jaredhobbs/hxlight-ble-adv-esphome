@@ -52,7 +52,7 @@ hxlight_ble_adv:
   id: hxlight_controller
   adv_interval_min: 30ms
   adv_interval_max: 30ms
-  adv_duration: 2000ms
+  adv_duration: 1000ms
   adv_gap: 60ms
   max_queue_size: 32
 
@@ -83,7 +83,7 @@ After ESPHome adopts the device into Home Assistant, press **Floor Lamp Pair/Syn
 | `id` | no | auto | Controller ID used by one or more lights. |
 | `adv_interval_min` | no | `30ms` | BLE advertising interval lower bound. Increase if BLE/Wi-Fi is unstable. |
 | `adv_interval_max` | no | `30ms` | BLE advertising interval upper bound. Keep equal to min for predictable behavior. |
-| `adv_duration` | no | `2000ms` | How long each generated command is advertised. Longer windows reliably reach lamps that listen sparsely while idle/in standby (the common cause of a command being missed after the lamp has been off a while); lower it (e.g. `1000ms`) to reduce per-command latency once delivery is solid. |
+| `adv_duration` | no | `1000ms` | How long each generated command is advertised. Raise it (e.g. `2000ms`–`3000ms`) if commands are missed after the lamp has been idle/off a while (some lamps listen sparsely in standby); lower it for snappier response. |
 | `adv_gap` | no | `60ms` | Pause between queued commands. |
 | `max_queue_size` | no | `32` | Drops commands if HA sends too many rapid changes. |
 | `tx_power` | no | `9` | BLE transmit power in dBm. One of `-12, -9, -6, -3, 0, 3, 6, 9`; `9` is max on the classic ESP32. Raise for range/reliability, lower only to reduce interference. |
@@ -108,8 +108,8 @@ After ESPHome adopts the device into Home Assistant, press **Floor Lamp Pair/Syn
 | `command_gap` | no | controller default | Per-light override for `adv_gap`. |
 | `flags` | no | `0x01` | BLE flags byte. Most captures use `0x01`; `0x02` also appears. |
 | `send_on_with_state` | no | `true` | Sends ON when transitioning from off to on. |
-| `send_brightness_on_turn_on` | no | `true` | Sends stored/current brightness after ON. |
-| `send_color_temp_on_turn_on` | no | `true` | Sends stored/current CT after ON. |
+| `send_brightness_on_turn_on` | no | `false` | Sends stored/current brightness after ON. Off by default: the lamp remembers its last brightness, so re-sending it on every turn-on just adds queued commands and latency. Enable only if your lamp forgets brightness across power cycles. |
+| `send_color_temp_on_turn_on` | no | `false` | Sends stored/current CT after ON. Off by default for the same reason as `send_brightness_on_turn_on`. |
 | `default_transition_length` | no | ESPHome default | Strongly recommend `0s` to avoid many queued commands. |
 
 ## Pairing and resyncing

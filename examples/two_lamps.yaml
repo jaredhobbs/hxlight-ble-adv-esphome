@@ -23,7 +23,7 @@ external_components:
 
 hxlight_ble_adv:
   id: hxlight_controller
-  adv_duration: 2000ms
+  adv_duration: 1000ms
   adv_gap: 60ms
 
 light:
