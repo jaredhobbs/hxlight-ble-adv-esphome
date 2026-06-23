@@ -52,7 +52,7 @@ hxlight_ble_adv:
   id: hxlight_controller
   adv_interval_min: 30ms
   adv_interval_max: 30ms
-  adv_duration: 700ms
+  adv_duration: 2000ms
   adv_gap: 60ms
   max_queue_size: 32
 
@@ -83,7 +83,7 @@ After ESPHome adopts the device into Home Assistant, press **Floor Lamp Pair/Syn
 | `id` | no | auto | Controller ID used by one or more lights. |
 | `adv_interval_min` | no | `30ms` | BLE advertising interval lower bound. Increase if BLE/Wi-Fi is unstable. |
 | `adv_interval_max` | no | `30ms` | BLE advertising interval upper bound. Keep equal to min for predictable behavior. |
-| `adv_duration` | no | `700ms` | How long each generated command is advertised. Increase to `1200ms` if commands are missed. |
+| `adv_duration` | no | `2000ms` | How long each generated command is advertised. Longer windows reliably reach lamps that listen sparsely while idle/in standby (the common cause of a command being missed after the lamp has been off a while); lower it (e.g. `1000ms`) to reduce per-command latency once delivery is solid. |
 | `adv_gap` | no | `60ms` | Pause between queued commands. |
 | `max_queue_size` | no | `32` | Drops commands if HA sends too many rapid changes. |
 | `tx_power` | no | `9` | BLE transmit power in dBm. One of `-12, -9, -6, -3, 0, 3, 6, 9`; `9` is max on the classic ESP32. Raise for range/reliability, lower only to reduce interference. |
@@ -288,11 +288,11 @@ CCT:        83 31 17 01 07 65 <cold> <warm> 9a 55 55 seq checksum
 
 ### Commands are missed
 
-Increase duration:
+Increase duration beyond the `2000ms` default:
 
 ```yaml
 hxlight_ble_adv:
-  adv_duration: 1200ms
+  adv_duration: 3000ms
 ```
 
 or reduce Wi-Fi/BLE congestion by moving the ESP32 closer to the lamp.

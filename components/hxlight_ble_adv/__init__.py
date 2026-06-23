@@ -42,7 +42,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(min=TimePeriod(milliseconds=20), max=TimePeriod(milliseconds=10240)),
             ),
-            cv.Optional(CONF_ADV_DURATION, default="700ms"): cv.All(
+            cv.Optional(CONF_ADV_DURATION, default="2000ms"): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(min=TimePeriod(milliseconds=50), max=TimePeriod(milliseconds=10000)),
             ),
