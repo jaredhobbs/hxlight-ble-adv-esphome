@@ -92,6 +92,8 @@ void HXLightBLEAdvController::setup() {
       .adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY,
   };
 
+  this->apply_radio_tuning_();
+
   this->scan_params_ = {
       .scan_type = BLE_SCAN_TYPE_PASSIVE,
       .own_addr_type = BLE_ADDR_TYPE_PUBLIC,
@@ -113,7 +115,47 @@ void HXLightBLEAdvController::dump_config() {
   ESP_LOGCONFIG(TAG, "  Adv duration: %ums", this->adv_duration_ms_);
   ESP_LOGCONFIG(TAG, "  Adv gap: %ums", this->adv_gap_ms_);
   ESP_LOGCONFIG(TAG, "  Max queue size: %u", this->max_queue_size_);
+  ESP_LOGCONFIG(TAG, "  TX power: %ddBm", static_cast<int>(this->tx_power_dbm_));
+#ifdef HXLIGHT_HAS_COEXIST
+  ESP_LOGCONFIG(TAG, "  Prefer BLE coexistence: %s", YESNO(this->prefer_ble_));
+#endif
   ESP_LOGCONFIG(TAG, "  Discovery: %s", YESNO(this->discovery_enabled_));
+}
+
+esp_power_level_t HXLightBLEAdvController::dbm_to_power_level_(int8_t dbm) {
+  switch (dbm) {
+    case -12: return ESP_PWR_LVL_N12;
+    case -9: return ESP_PWR_LVL_N9;
+    case -6: return ESP_PWR_LVL_N6;
+    case -3: return ESP_PWR_LVL_N3;
+    case 0: return ESP_PWR_LVL_N0;
+    case 3: return ESP_PWR_LVL_P3;
+    case 6: return ESP_PWR_LVL_P6;
+    case 9: return ESP_PWR_LVL_P9;
+    default: return ESP_PWR_LVL_P9;
+  }
+}
+
+void HXLightBLEAdvController::apply_radio_tuning_() {
+  const esp_power_level_t level = dbm_to_power_level_(this->tx_power_dbm_);
+  esp_err_t err = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, level);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Failed to set BLE adv TX power: %s", esp_err_to_name(err));
+  } else {
+    ESP_LOGI(TAG, "BLE adv TX power set to %ddBm", static_cast<int>(this->tx_power_dbm_));
+  }
+  esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_SCAN, level);
+
+#ifdef HXLIGHT_HAS_COEXIST
+  if (this->prefer_ble_) {
+    esp_err_t cerr = esp_coex_preference_set(ESP_COEX_PREFER_BT);
+    if (cerr != ESP_OK) {
+      ESP_LOGW(TAG, "Failed to set BLE coexistence preference: %s", esp_err_to_name(cerr));
+    } else {
+      ESP_LOGI(TAG, "BLE coexistence preference set to favor BT");
+    }
+  }
+#endif
 }
 
 void HXLightBLEAdvController::start_discovery_scan_() {

@@ -86,6 +86,8 @@ After ESPHome adopts the device into Home Assistant, press **Floor Lamp Pair/Syn
 | `adv_duration` | no | `700ms` | How long each generated command is advertised. Increase to `1200ms` if commands are missed. |
 | `adv_gap` | no | `60ms` | Pause between queued commands. |
 | `max_queue_size` | no | `32` | Drops commands if HA sends too many rapid changes. |
+| `tx_power` | no | `9` | BLE transmit power in dBm. One of `-12, -9, -6, -3, 0, 3, 6, 9`; `9` is max on the classic ESP32. Raise for range/reliability, lower only to reduce interference. |
+| `prefer_ble` | no | `true` | Biases the ESP32's shared Wi-Fi/BLE radio scheduler toward BLE, so command advertisements aren't starved by Wi-Fi. Pair with `wifi: { power_save_mode: none }` for the most reliable delivery. |
 | `discovery` | no | `false` | Temporarily scan for HXLight Android app advertisements and log `device_prefix`/`initial_sequence` YAML values. Disable before normal lamp control. |
 
 ### `light:` platform
@@ -294,6 +296,19 @@ hxlight_ble_adv:
 ```
 
 or reduce Wi-Fi/BLE congestion by moving the ESP32 closer to the lamp.
+
+If commands intermittently stop landing and later recover on their own (a classic Wi-Fi/BLE coexistence symptom), max out the transmit power and prioritize BLE on the shared radio:
+
+```yaml
+hxlight_ble_adv:
+  tx_power: 9        # dBm, max on classic ESP32 (this is the default)
+  prefer_ble: true   # bias the shared radio toward BLE (default)
+
+wifi:
+  power_save_mode: none
+```
+
+`tx_power`/`prefer_ble` already default to these values; `wifi: power_save_mode: none` must be set in your top-level `wifi:` block.
 
 ### Brightness slider queues many commands
 

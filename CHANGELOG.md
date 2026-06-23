@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added controller `tx_power` (BLE transmit power, default `9` dBm / max on classic ESP32) and `prefer_ble` (default `true`, biases the ESP32's shared Wi-Fi/BLE radio toward BLE via the coexistence scheduler). Both improve command-advertisement reliability; pair `prefer_ble` with `wifi: { power_save_mode: none }` for best results.
 - Added per-light **Pair/Sync**: a `pair_sync` button entity and optional `pair_sync_status` text-sensor. Press the button and tap the lamp in the HXLight app within 30s to learn the `device_prefix` (when unpaired) or resync the rolling sequence (when paired) — no reflash needed for app desync recovery.
 - `device_prefix` is now **optional**. Omit it to pair from the app (learned prefix is persisted across reboots), or pin it in YAML (pinned prefixes are never overwritten and only resync the sequence). Unpaired lights ignore commands until paired.
 

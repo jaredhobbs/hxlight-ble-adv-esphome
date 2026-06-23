@@ -14,6 +14,10 @@
 #endif
 #include <esp_gap_ble_api.h>
 #include <esp_err.h>
+#if __has_include(<esp_coexist.h>)
+#include <esp_coexist.h>
+#define HXLIGHT_HAS_COEXIST
+#endif
 
 namespace esphome::hxlight_ble_adv {
 
@@ -37,6 +41,8 @@ class HXLightBLEAdvController : public Component {
   void set_adv_gap(uint16_t val) { this->adv_gap_ms_ = val; }
   void set_max_queue_size(uint8_t val) { this->max_queue_size_ = val; }
   void set_discovery(bool val) { this->discovery_enabled_ = val; }
+  void set_tx_power(int8_t dbm) { this->tx_power_dbm_ = dbm; }
+  void set_prefer_ble(bool val) { this->prefer_ble_ = val; }
 
   uint16_t get_default_duration() const { return this->adv_duration_ms_; }
   uint16_t get_default_gap() const { return this->adv_gap_ms_; }
@@ -62,6 +68,8 @@ class HXLightBLEAdvController : public Component {
   void end_resync_(bool success);
   bool scan_capture_active_() const { return this->discovery_enabled_ || this->resync_active_; }
   uint16_t interval_units_(uint16_t ms) const;
+  void apply_radio_tuning_();
+  static esp_power_level_t dbm_to_power_level_(int8_t dbm);
 
   uint16_t adv_interval_min_ms_{30};
   uint16_t adv_interval_max_ms_{30};
@@ -69,6 +77,8 @@ class HXLightBLEAdvController : public Component {
   uint16_t adv_gap_ms_{60};
   uint8_t max_queue_size_{32};
   bool discovery_enabled_{false};
+  int8_t tx_power_dbm_{9};
+  bool prefer_ble_{true};
 
   esp_ble_adv_params_t adv_params_{};
   esp_ble_scan_params_t scan_params_{};

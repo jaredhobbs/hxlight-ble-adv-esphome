@@ -16,6 +16,8 @@ CONF_ADV_DURATION = "adv_duration"
 CONF_ADV_GAP = "adv_gap"
 CONF_MAX_QUEUE_SIZE = "max_queue_size"
 CONF_DISCOVERY = "discovery"
+CONF_TX_POWER = "tx_power"
+CONF_PREFER_BLE = "prefer_ble"
 
 hxlight_ble_adv_ns = cg.esphome_ns.namespace("hxlight_ble_adv")
 HXLightBLEAdvController = hxlight_ble_adv_ns.class_("HXLightBLEAdvController", cg.Component)
@@ -49,6 +51,8 @@ CONFIG_SCHEMA = cv.All(
                 cv.Range(min=TimePeriod(milliseconds=0), max=TimePeriod(milliseconds=5000)),
             ),
             cv.Optional(CONF_MAX_QUEUE_SIZE, default=32): cv.int_range(min=1, max=255),
+            cv.Optional(CONF_TX_POWER, default=9): cv.one_of(-12, -9, -6, -3, 0, 3, 6, 9, int=True),
+            cv.Optional(CONF_PREFER_BLE, default=True): cv.boolean,
             cv.Optional(CONF_DISCOVERY, default=False): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -69,6 +73,8 @@ async def to_code(config):
     cg.add(var.set_adv_duration(config[CONF_ADV_DURATION]))
     cg.add(var.set_adv_gap(config[CONF_ADV_GAP]))
     cg.add(var.set_max_queue_size(config[CONF_MAX_QUEUE_SIZE]))
+    cg.add(var.set_tx_power(config[CONF_TX_POWER]))
+    cg.add(var.set_prefer_ble(config[CONF_PREFER_BLE]))
     cg.add(var.set_discovery(config[CONF_DISCOVERY]))
 
     # This component transmits raw BLE advertisements directly through the
