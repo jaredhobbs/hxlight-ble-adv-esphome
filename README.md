@@ -326,6 +326,12 @@ Avoid dragging the slider rapidly. HA may send many intermediate light states; e
 
 Using the HXLight app advances the rolling sequence, so ESPHome falls out of sync. Press the lamp's **Pair/Sync** button and tap ON/OFF in the app within 30 seconds — the sequence resyncs with no reflash. See [Pairing and resyncing](#pairing-and-resyncing). (Add a `pair_sync` button to the light if you haven't yet.)
 
+### It worked, then stopped after a power event (breaker, outage, smart plug)
+
+A messy power event (a flipped breaker, brownout, or rapid power toggle) can leave the lamp's BLE receiver wedged — the ESP keeps transmitting correctly (you'll still see `HXLight adv broadcasting` log lines) but the lamp ignores everything. **Clean power-cycle the lamp**: unplug it for ~10 seconds, then plug it back in. The lamp's pairing and rolling-sequence state survive the power loss, so it usually recovers with no Pair/Sync needed. If it still doesn't respond after a clean reboot, fall back to Pair/Sync. Putting the lamp on a UPS avoids the trigger entirely.
+
+To confirm the ESP side is healthy, check the log while sending a command: if `HXLight adv broadcasting` lines appear, the radio is transmitting and the problem is lamp-side (power-cycle it), not the ESP.
+
 ### Compile errors around Bluetooth advertising
 
 Use a dedicated ESP32 for this bridge if possible. Avoid running other components that continuously own BLE advertising on the same device. BLE scanning/proxy features may work, but this component is designed to transmit raw advertisements and can conflict with other raw-advertising components.
